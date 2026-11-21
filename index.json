@@ -1,6 +1,10 @@
 {
   "name": "Anikku TR",
   "badgeLabel": "TR",
+  "signingKey": "f0f2db62ac62318ca74a125165f3e1255674c67f676aa70b414fc465f99bc92b",
+  "contact": {
+    "website": "https://github.com/KaanAlper/anikku-extension-repo"
+  },
   "extensionList": {
     "extensions": [
       {
