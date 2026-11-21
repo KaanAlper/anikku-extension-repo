@@ -18,9 +18,26 @@ LANGUAGE_REGEX = re.compile(r"aniyomi-([^.]+)")
 
 
 @cache
-def aapt() -> Path:
+def build_tools_dir() -> Path:
     *_, build_tools = (Path(os.environ["ANDROID_HOME"]) / "build-tools").iterdir()
-    return build_tools / "aapt"
+    return build_tools
+
+
+@cache
+def aapt() -> Path:
+    return build_tools_dir() / "aapt"
+
+
+def get_apk_sha256(apk_path: Path) -> str:
+    apksigner = build_tools_dir() / "apksigner"
+    out = subprocess.check_output(
+        [apksigner, "verify", "--print-certs", str(apk_path)],
+        stderr=subprocess.STDOUT,
+    ).decode()
+    m = re.search(r"SHA-256 digest:\s*([0-9a-fA-F]+)", out)
+    if m:
+        return m.group(1).lower()
+    return ""
 
 # Artifacts downloaded from the build jobs: one APK per extension plus the source metadata JSON
 # emitted by each assembleRelease (assembleDebug in a PR check without the signing key).
@@ -56,6 +73,7 @@ for module in to_delete:
 # source-info JSON emitted by its assembleRelease task (see GenerateSourceInfoTask); its APK is a
 # sibling in the same build dir. aapt reads the icon out of the APK
 new_extensions: list[index_pb2.Extension] = []
+signing_key = ""
 
 for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
     with info_file.open(encoding="utf-8") as f:
@@ -65,6 +83,8 @@ for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
 
     apk_name = apk.name.replace("-release.apk", ".apk")
     (REPO_APK_DIR / apk_name).write_bytes(apk.read_bytes())
+    if not signing_key:
+        signing_key = get_apk_sha256(apk)
 
     badging = subprocess.check_output(
         [aapt(), "dump", "--include-meta-data", "badging", apk]
@@ -134,8 +154,24 @@ for directory, keep in referenced.items():
 index = index_pb2.Index(
     name="Anikku TR",
     badgeLabel="TR",
+    signingKey=signing_key,
+    contact=index_pb2.Contact(
+        website=f"https://github.com/{REPO_SLUG}",
+    ),
     extensionList=index_pb2.ExtensionList(extensions=all_extensions),
 )
+
+repo_meta = {
+    "index_v2": f"https://raw.githubusercontent.com/{REPO_SLUG}/repo/index.pb",
+    "meta": {
+        "name": "Anikku TR",
+        "shortName": "anikku-tr",
+        "website": f"https://github.com/{REPO_SLUG}",
+        "signingKeyFingerprint": signing_key,
+    },
+}
+with REPO_DIR.joinpath("repo.json").open("w", encoding="utf-8") as f:
+    json.dump(repo_meta, f, ensure_ascii=False, indent=2)
 
 with REPO_DIR.joinpath("index.json").open("w", encoding="utf-8") as f:
     f.write(
