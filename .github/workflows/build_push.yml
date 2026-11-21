@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '**'
+      - '!**.md'
+      - '!.github/**'
+      - '.github/scripts/**'
+      - '.github/workflows/build_push.yml'
+  workflow_dispatch:
+    inputs:
+      full_rebuild:
+        description: Rebuild and republish every extension
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI_CHUNK_SIZE: 15
+  IS_PR_CHECK: false
+
+jobs:
+  prepare:
+    name: Prepare job
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      latestCommitMessage: ${{ steps.set-env.outputs.LATEST_COMMIT_MESSAGE }}
+      matrix: ${{ steps.generate-matrices.outputs.matrix }}
+      delete: ${{ steps.generate-matrices.outputs.delete }}
+      full_rebuild: ${{ steps.base.outputs.full_rebuild || steps.generate-matrices.outputs.full_rebuild }}
+    steps:
+      - name: Checkout ${{ github.ref_name }} branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set env
+        id: set-env
+        env:
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          LATEST_COMMIT_MESSAGE=$(git log -1 --pretty=%B "$HEAD_SHA")
+          echo "LATEST_COMMIT_MESSAGE<<EOF" >> $GITHUB_OUTPUT
+          echo "$LATEST_COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Built on commit: $HEAD_SHA" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - id: base
+        name: Get last successful CI commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FULL_REBUILD: ${{ inputs.full_rebuild }}
+        run: |
+          empty_tree=$(git hash-object -t tree /dev/null)
+          if [ "$FULL_REBUILD" = "true" ]; then
+            sha=$empty_tree
+          else
+            sha=$(python ./.github/scripts/find-base-sha.py build_push.yml)
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [ "$sha" = "$empty_tree" ]; then
+            echo "full_rebuild=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: generate-matrices
+        name: Create output matrices
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          python ./.github/scripts/generate-build-matrices.py "$BASE_SHA" Release
+
+  build:
+    name: Build extensions (${{ matrix.chunk.number }})
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ toJson(fromJson(needs.prepare.outputs.matrix).chunk) != '[]' }}
+    strategy:
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Checkout ${{ github.ref_name }} branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 25
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ matrix.chunk.number > 1 }}
+
+      - name: Prepare signing key
+        id: signing
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$SIGNING_KEY" ]; then
+            echo "$SIGNING_KEY" | base64 -d > signingkey.jks
+            echo "ALIAS=$ALIAS" >> $GITHUB_ENV
+            echo "KEY_STORE_PASSWORD=$KEY_STORE_PASSWORD" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
+          else
+            keytool -genkeypair -v -keystore signingkey.jks -alias anikku -keyalg RSA -keysize 2048 -validity 10000 -storepass anikku123 -keypass anikku123 -dname "CN=AnikkuTR, OU=Dev, O=AnikkuTR, L=TR, ST=TR, C=TR"
+            echo "ALIAS=anikku" >> $GITHUB_ENV
+            echo "KEY_STORE_PASSWORD=anikku123" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=anikku123" >> $GITHUB_ENV
+          fi
+          chmod 600 signingkey.jks
+
+      - name: Build extensions (${{ matrix.chunk.number }})
+        env:
+          MODULES: ${{ join(matrix.chunk.modules, ' ') }}
+        run: |
+          ./gradlew $MODULES
+
+      - name: Upload APKs (${{ matrix.chunk.number }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: "individual-apks-${{ matrix.chunk.number }}"
+          path: |
+            **/*.apk
+            **/build/keiyoushi-source-info.json
+          retention-days: 1
+
+      - name: Clean up CI files
+        run: rm -f signingkey.jks
+
+  publish:
+    name: Publish extension repo
+    needs: [prepare, build]
+    if: >-
+      !cancelled()
+      && needs.prepare.result == 'success'
+      && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ~/apk-artifacts
+
+      - name: Checkout ${{ github.ref_name }} branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          path: ${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout or init repo branch
+        run: |
+          git clone --depth 1 --branch repo "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" repo || (
+            mkdir repo && cd repo && git init && git checkout -b repo && git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          )
+
+      - name: Publish repo
+        env:
+          DELETE: ${{ needs.prepare.outputs.delete }}
+          FULL_REBUILD: ${{ needs.prepare.outputs.full_rebuild }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          cd repo
+          pip install "protobuf>=7.35.1,<8"
+          python ../${{ github.ref_name }}/.github/scripts/publish-repo.py "$DELETE" "$FULL_REBUILD"
+
+      - name: Commit and push repo branch
+        run: |
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || (git commit -m "Update extension repo" && git push -u origin repo)
