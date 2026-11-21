@@ -28,6 +28,9 @@ abstract class Anizle : AnimeHttpLegacySource() {
 
     override val supportsLatest = true
 
+    override fun headersBuilder() = super.headersBuilder()
+        .set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+
     private val mirrors = listOf("https://anizle.co", "https://anizm.com.tr", "https://anizm.pro")
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -293,15 +296,66 @@ abstract class Anizle : AnimeHttpLegacySource() {
             } else {
                 finalPlayerUrl.toHttpUrlOrNull()?.resolve(path)?.toString() ?: continue
             }
-            val extracted = playlistUtils.extractFromHls(
-                playlistUrl = m3u8Url,
-                referer = finalPlayerUrl,
-                videoNameGen = { quality -> "$quality ($labelPrefix)" },
-            )
+            val extracted = extractHlsVariants(m3u8Url, finalPlayerUrl, labelPrefix)
             if (extracted.isNotEmpty()) return extracted
         }
 
         return emptyList()
+    }
+
+    private fun extractHlsVariants(m3u8Url: String, referer: String, labelPrefix: String): List<Video> {
+        val streamHeaders = headersBuilder()
+            .set("Referer", referer)
+            .set("Accept", "*/*")
+            .build()
+        val body = runCatching {
+            client.newCall(GET(m3u8Url, streamHeaders)).execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                resp.body.string()
+            }
+        }.getOrNull() ?: return emptyList()
+
+        if (!body.trimStart().startsWith("#EXTM3U")) return emptyList()
+
+        val base = m3u8Url.toHttpUrlOrNull()
+        val resRe = Regex("""RESOLUTION=\d+x(\d+)""")
+        val nameRe = Regex("""NAME="([^"]+)"""")
+        val lines = body.lines()
+        val variants = mutableListOf<Video>()
+
+        for (i in lines.indices) {
+            val line = lines[i].trim()
+            if (line.startsWith("#EXT-X-STREAM-INF:")) {
+                val nextUri = lines.getOrNull(i + 1)?.trim() ?: ""
+                if (nextUri.isEmpty() || nextUri.startsWith("#")) continue
+                val resolved = if (nextUri.startsWith("http")) {
+                    nextUri
+                } else {
+                    base?.resolve(nextUri)?.toString() ?: continue
+                }
+                val quality = nameRe.find(line)?.groupValues?.get(1)
+                    ?: resRe.find(line)?.groupValues?.get(1)?.let { "${it}p" }
+                    ?: "HLS"
+                variants.add(
+                    Video(
+                        videoUrl = resolved,
+                        videoTitle = "$quality ($labelPrefix)",
+                        headers = streamHeaders,
+                    ),
+                )
+            }
+        }
+
+        if (variants.isEmpty()) {
+            variants.add(
+                Video(
+                    videoUrl = m3u8Url,
+                    videoTitle = "Auto ($labelPrefix)",
+                    headers = streamHeaders,
+                ),
+            )
+        }
+        return variants
     }
 
     private fun normalizeTr(input: String): String {

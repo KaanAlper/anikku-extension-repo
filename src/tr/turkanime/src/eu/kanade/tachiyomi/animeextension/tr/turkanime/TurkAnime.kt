@@ -37,8 +37,8 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
     override val supportsLatest = false
 
     private val archiveMirrors = listOf(
-        "https://raw.githubusercontent.com/barkeser2002/turkanime-gui/main/arsiv",
         "https://gitlab.com/AnimeDepo/animedepo/-/raw/master",
+        "https://raw.githubusercontent.com/barkeser2002/turkanime-gui/main/arsiv",
     )
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -221,10 +221,10 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
         return videos
     }
 
-    private fun extractCandidate(c: StreamCandidate): List<Video> {
+    private fun extractCandidate(c: StreamCandidate): List<Video> = runCatching {
         val prefix = "${c.player} (${c.fansub}) - "
         val url = c.url
-        return when {
+        when {
             url.contains("pixeldrain.com") ->
                 PixelDrainExtractor().videosFromUrl(url, prefix)
 
@@ -267,7 +267,7 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
 
             else -> emptyList()
         }
-    }
+    }.getOrDefault(emptyList())
 
     private fun cleanUrl(raw: String): String? {
         var u = raw.trim()
