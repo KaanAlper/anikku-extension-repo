@@ -287,9 +287,11 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
             )
         }
 
-        candidates.sortBy { it.priority }
+        val supportedCandidates = candidates
+            .filter { canExtract(it.url) }
+            .sortedBy { it.priority }
 
-        val videos = candidates.take(6).parallelCatchingFlatMapBlocking { c ->
+        val videos = supportedCandidates.take(6).parallelCatchingFlatMapBlocking { c ->
             extractCandidate(c)
         }.map { v ->
             val seekArgs = listOf(
@@ -308,6 +310,21 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
         }
         return videos
     }
+
+    private fun canExtract(url: String): Boolean =
+        url.contains("pixeldrain.com") ||
+            url.contains("sibnet.ru") ||
+            url.contains("ok.ru") ||
+            url.contains("odnoklassniki") ||
+            url.contains("dailymotion.com") ||
+            url.contains("dai.ly") ||
+            url.contains("vk.com") ||
+            url.contains("vkvideo.ru") ||
+            url.contains("vidmoly") ||
+            url.contains("sendvid.com") ||
+            url.contains("drive.google.com") ||
+            url.contains(".m3u8") ||
+            url.contains(".mp4")
 
     private fun extractCandidate(c: StreamCandidate): List<Video> = runCatching {
         val prefix = "${c.player} (${c.fansub}) - "
