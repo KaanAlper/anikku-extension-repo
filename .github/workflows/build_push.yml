@@ -42,7 +42,7 @@ jobs:
       full_rebuild: ${{ steps.base.outputs.full_rebuild || steps.generate-matrices.outputs.full_rebuild }}
     steps:
       - name: Checkout ${{ github.ref_name }} branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -92,7 +92,7 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout ${{ github.ref_name }} branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
           persist-credentials: false
@@ -163,7 +163,7 @@ jobs:
           path: ~/apk-artifacts
 
       - name: Checkout ${{ github.ref_name }} branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
           path: ${{ github.ref_name }}
