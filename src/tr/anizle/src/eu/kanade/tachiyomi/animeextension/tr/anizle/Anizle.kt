@@ -325,9 +325,9 @@ abstract class Anizle : AnimeHttpLegacySource() {
             "demuxer-seekable-cache" to "yes",
         )
         val hlsFfmpegArgs = listOf(
-            "-allowed_extensions" to "ALL",
-            "-extension_picky" to "0",
-            "-f" to "hls",
+            "allowed_extensions" to "ALL",
+            "extension_picky" to "0",
+            "f" to "hls",
         )
 
         val base = m3u8Url.toHttpUrlOrNull()

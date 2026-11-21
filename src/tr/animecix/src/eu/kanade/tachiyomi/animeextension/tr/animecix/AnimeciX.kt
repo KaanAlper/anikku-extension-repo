@@ -274,9 +274,6 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
             "stream-lavf-o" to "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5",
             "demuxer-seekable-cache" to "yes",
         )
-        val hlsFfmpegArgs = listOf(
-            "-allowed_extensions" to "ALL",
-        )
 
         val videos = urls.mapNotNull { item ->
             val obj = item.jsonObject
@@ -288,7 +285,6 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
                 headers = streamHeaders,
                 subtitleTracks = subtitleTracks,
                 mpvArgs = seekMpvArgs,
-                ffmpegStreamArgs = hlsFfmpegArgs,
             )
         }
 

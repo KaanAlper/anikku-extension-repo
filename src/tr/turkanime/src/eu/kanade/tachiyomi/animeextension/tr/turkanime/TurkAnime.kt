@@ -298,7 +298,11 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
                 "stream-lavf-o" to "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5",
                 "demuxer-seekable-cache" to "yes",
             )
-            val ffArgs = listOf("-allowed_extensions" to "ALL")
+            val ffArgs = if (v.videoUrl.contains(".m3u8")) {
+                listOf("allowed_extensions" to "ALL", "f" to "hls")
+            } else {
+                emptyList()
+            }
             v.copy(
                 mpvArgs = v.mpvArgs.ifEmpty { seekArgs },
                 ffmpegStreamArgs = v.ffmpegStreamArgs.ifEmpty { ffArgs },
