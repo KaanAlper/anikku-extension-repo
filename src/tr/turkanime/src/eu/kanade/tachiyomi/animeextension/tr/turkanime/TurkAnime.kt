@@ -27,14 +27,23 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.net.URLDecoder
+import java.util.concurrent.TimeUnit
 
 @Source
 abstract class TurkAnime : AnimeHttpLegacySource() {
 
     override val supportsLatest = false
+
+    override val client: OkHttpClient by lazy {
+        network.client.newBuilder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
 
     private val archiveMirrors = listOf(
         "https://gitlab.com/AnimeDepo/animedepo/-/raw/master",
@@ -211,7 +220,7 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
 
         candidates.sortBy { it.priority }
 
-        val videos = candidates.take(12).parallelCatchingFlatMapBlocking { c ->
+        val videos = candidates.take(6).parallelCatchingFlatMapBlocking { c ->
             extractCandidate(c)
         }
 
