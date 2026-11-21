@@ -80,8 +80,7 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
         return AnimesPage(animes, false)
     }
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request =
-        throw UnsupportedOperationException()
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request = throw UnsupportedOperationException()
     override fun searchAnimeParse(response: Response): AnimesPage = throw UnsupportedOperationException()
 
     private fun parseSearchItem(item: JsonObject): SAnime? {

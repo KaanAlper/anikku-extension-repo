@@ -131,8 +131,7 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
         return AnimesPage(scored.take(25).map { it.second }, false)
     }
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request =
-        throw UnsupportedOperationException()
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request = throw UnsupportedOperationException()
     override fun searchAnimeParse(response: Response): AnimesPage = throw UnsupportedOperationException()
 
     // =========================== Anime Details ============================
