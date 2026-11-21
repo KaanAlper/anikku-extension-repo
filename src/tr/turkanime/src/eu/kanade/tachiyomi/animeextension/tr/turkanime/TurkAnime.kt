@@ -15,6 +15,7 @@ import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import keiyoushi.annotation.Source
 import keiyoushi.utils.AnimeHttpLegacySource
 import keiyoushi.utils.parallelCatchingFlatMapBlocking
@@ -27,8 +28,10 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.net.URLDecoder
 import java.util.concurrent.TimeUnit
@@ -147,12 +150,16 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
     override suspend fun getAnimeDetails(anime: SAnime): SAnime {
         val slug = anime.url.trim('/')
         val info = runCatching { fetchArchiveJson("animeler/$slug/info.json").jsonObject }.getOrNull()
+        val searchTitle = info?.get("Japonca")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+            ?: anime.title
+        val cover = fetchCoverFromAniList(anime.title)
+            ?: fetchCoverFromAniList(searchTitle)
+            ?: info?.get("Resim")?.jsonPrimitive?.contentOrNull?.replace("http://", "https://")
         return SAnime.create().apply {
             url = anime.url
             title = anime.title
+            thumbnail_url = cover
             if (info != null) {
-                thumbnail_url = info["Resim"]?.jsonPrimitive?.contentOrNull
-                    ?.replace("http://", "https://")
                 description = info["Özet"]?.jsonPrimitive?.contentOrNull
                     ?.replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
                 genre = info["Anime Türü"]?.jsonArray
@@ -163,6 +170,21 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
             initialized = true
         }
     }
+
+    private fun fetchCoverFromAniList(title: String): String? = runCatching {
+        val escaped = title.replace("\\", "\\\\").replace("\"", "\\\"")
+        val query = """{"query":"query{Media(search:\"$escaped\",type:ANIME){coverImage{extraLarge large}}}"}"""
+        val body = query.toRequestBody("application/json; charset=utf-8".toMediaType())
+        client.newCall(POST("https://graphql.anilist.co", headers, body)).execute().use { resp ->
+            if (!resp.isSuccessful) return@use null
+            val coverObj = json.parseToJsonElement(resp.body.string()).jsonObject["data"]
+                ?.jsonObject?.get("Media")
+                ?.jsonObject?.get("coverImage")
+                ?.jsonObject ?: return@use null
+            coverObj["extraLarge"]?.jsonPrimitive?.contentOrNull
+                ?: coverObj["large"]?.jsonPrimitive?.contentOrNull
+        }
+    }.getOrNull()
 
     override fun animeDetailsParse(response: Response): SAnime = throw UnsupportedOperationException()
 
