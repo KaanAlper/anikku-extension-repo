@@ -31,6 +31,21 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
     private val tauHost = "tau-video.xyz"
     private val json = Json { ignoreUnknownKeys = true }
 
+    private suspend fun fetchRelatedVideos(titleId: String, seasonNum: Int): JsonObject {
+        val hosts = listOf(altUrl, baseUrl)
+        var lastError: Throwable? = null
+        for (host in hosts) {
+            val url = "$host/secure/related-videos?episode=1&season=$seasonNum&titleId=$titleId&videoId=637113"
+            val result = runCatching {
+                val body = client.newCall(GET(url, apiHeaders)).awaitSuccess().use { it.body.string() }
+                json.parseToJsonElement(body).jsonObject
+            }
+            if (result.isSuccess) return result.getOrThrow()
+            lastError = result.exceptionOrNull()
+        }
+        throw lastError ?: Exception("Bölüm verisi alınamadı")
+    }
+
     private val apiHeaders: Headers by lazy {
         headersBuilder()
             .set("Accept", "application/json")
@@ -131,9 +146,7 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
             )
         }
 
-        val firstUrl = "$altUrl/secure/related-videos?episode=1&season=1&titleId=$animeId&videoId=637113"
-        val firstBody = client.newCall(GET(firstUrl, apiHeaders)).awaitSuccess().use { it.body.string() }
-        val firstData = json.parseToJsonElement(firstBody).jsonObject
+        val firstData = fetchRelatedVideos(animeId, 1)
 
         val seasonCount = firstData["videos"]?.jsonArray
             ?.firstOrNull()?.jsonObject
@@ -148,9 +161,7 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
             val data = if (s == 1) {
                 firstData
             } else {
-                val u = "$altUrl/secure/related-videos?episode=1&season=$s&titleId=$animeId&videoId=637113"
-                val b = client.newCall(GET(u, apiHeaders)).awaitSuccess().use { it.body.string() }
-                json.parseToJsonElement(b).jsonObject
+                fetchRelatedVideos(animeId, s)
             }
 
             val videos = data["videos"]?.jsonArray ?: continue
@@ -277,12 +288,8 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
     }
 
     private suspend fun fetchTrCaption(titleId: String, seasonNum: Int, epUrl: String): List<Track> {
-        val url = "$altUrl/secure/related-videos?episode=1&season=$seasonNum&titleId=$titleId&videoId=637113"
-        val body = runCatching {
-            client.newCall(GET(url, apiHeaders)).awaitSuccess().use { it.body.string() }
-        }.getOrNull() ?: return emptyList()
-
-        val videos = json.parseToJsonElement(body).jsonObject["videos"]?.jsonArray ?: return emptyList()
+        val data = runCatching { fetchRelatedVideos(titleId, seasonNum) }.getOrNull() ?: return emptyList()
+        val videos = data["videos"]?.jsonArray ?: return emptyList()
         val target = videos.firstOrNull {
             it.jsonObject["url"]?.jsonPrimitive?.contentOrNull == epUrl
         } ?: videos.firstOrNull() ?: return emptyList()
