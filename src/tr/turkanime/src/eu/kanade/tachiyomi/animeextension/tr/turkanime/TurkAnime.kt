@@ -145,9 +145,21 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
 
     // =========================== Anime Details ============================
     override suspend fun getAnimeDetails(anime: SAnime): SAnime {
+        val slug = anime.url.trim('/')
+        val info = runCatching { fetchArchiveJson("animeler/$slug/info.json").jsonObject }.getOrNull()
         return SAnime.create().apply {
             url = anime.url
             title = anime.title
+            if (info != null) {
+                thumbnail_url = info["Resim"]?.jsonPrimitive?.contentOrNull
+                    ?.replace("http://", "https://")
+                description = info["Özet"]?.jsonPrimitive?.contentOrNull
+                    ?.replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+                genre = info["Anime Türü"]?.jsonArray
+                    ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                    ?.joinToString(", ")
+                artist = info["Stüdyo"]?.jsonPrimitive?.contentOrNull
+            }
             initialized = true
         }
     }
