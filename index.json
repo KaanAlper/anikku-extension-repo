@@ -11,12 +11,12 @@
         "name": "AnimeciX",
         "packageName": "eu.kanade.tachiyomi.animeextension.tr.animecix",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/apk/aniyomi-tr.animecix-v14.3.apk",
+          "apkUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/apk/aniyomi-tr.animecix-v14.4.apk",
           "iconUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/icon/eu.kanade.tachiyomi.animeextension.tr.animecix.png"
         },
         "extensionLib": "14",
-        "versionCode": "3",
-        "versionName": "14.3",
+        "versionCode": "4",
+        "versionName": "14.4",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
@@ -31,12 +31,12 @@
         "name": "Anizle",
         "packageName": "eu.kanade.tachiyomi.animeextension.tr.anizle",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/apk/aniyomi-tr.anizle-v14.3.apk",
+          "apkUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/apk/aniyomi-tr.anizle-v14.4.apk",
           "iconUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/icon/eu.kanade.tachiyomi.animeextension.tr.anizle.png"
         },
         "extensionLib": "14",
-        "versionCode": "3",
-        "versionName": "14.3",
+        "versionCode": "4",
+        "versionName": "14.4",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
@@ -51,12 +51,12 @@
         "name": "T\u00fcrkAnime",
         "packageName": "eu.kanade.tachiyomi.animeextension.tr.turkanime",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/apk/aniyomi-tr.turkanime-v14.6.apk",
+          "apkUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/apk/aniyomi-tr.turkanime-v14.8.apk",
           "iconUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/icon/eu.kanade.tachiyomi.animeextension.tr.turkanime.png"
         },
         "extensionLib": "14",
-        "versionCode": "6",
-        "versionName": "14.6",
+        "versionCode": "8",
+        "versionName": "14.8",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
