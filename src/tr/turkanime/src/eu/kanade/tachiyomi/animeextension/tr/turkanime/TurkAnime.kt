@@ -94,13 +94,16 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
     // ============================== Popular ===============================
     override suspend fun getPopularAnime(page: Int): AnimesPage {
         val all = loadDizinList()
-        val pageSize = 30
+        val pageSize = 20
         val chunks = all.chunked(pageSize)
         if (page - 1 >= chunks.size) return AnimesPage(emptyList(), false)
-        val items = chunks[page - 1].map { (slug, title) ->
+        val slice = chunks[page - 1]
+        val covers = fetchCoversBatchFromAniList(slice.map { it.second })
+        val items = slice.mapIndexed { idx, (slug, title) ->
             SAnime.create().apply {
                 url = slug
                 this.title = title
+                thumbnail_url = covers[idx]
             }
         }
         return AnimesPage(items, page < chunks.size)
@@ -140,7 +143,12 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
         }
 
         scored.sortWith(compareByDescending<Pair<Int, SAnime>> { it.first }.thenBy { it.second.title.length })
-        return AnimesPage(scored.take(25).map { it.second }, false)
+        val top = scored.take(20).map { it.second }
+        val covers = fetchCoversBatchFromAniList(top.map { it.title })
+        top.forEachIndexed { idx, anime ->
+            anime.thumbnail_url = covers[idx]
+        }
+        return AnimesPage(top, false)
     }
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request = throw UnsupportedOperationException()
@@ -175,8 +183,8 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
         val escaped = title.replace("\\", "\\\\").replace("\"", "\\\"")
         val query = """{"query":"query{Media(search:\"$escaped\",type:ANIME){coverImage{extraLarge large}}}"}"""
         val body = query.toRequestBody("application/json; charset=utf-8".toMediaType())
-        client.newCall(POST("https://graphql.anilist.co", headers, body)).execute().use { resp ->
-            if (!resp.isSuccessful) return@use null
+        val reqHeaders = headersBuilder().set("Accept", "application/json").build()
+        client.newCall(POST("https://graphql.anilist.co", reqHeaders, body)).execute().use { resp ->
             val coverObj = json.parseToJsonElement(resp.body.string()).jsonObject["data"]
                 ?.jsonObject?.get("Media")
                 ?.jsonObject?.get("coverImage")
@@ -185,6 +193,33 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
                 ?: coverObj["large"]?.jsonPrimitive?.contentOrNull
         }
     }.getOrNull()
+
+    private fun fetchCoversBatchFromAniList(titles: List<String>): Map<Int, String> = runCatching {
+        if (titles.isEmpty()) return emptyMap()
+        val sb = StringBuilder("query{")
+        titles.forEachIndexed { i, t ->
+            val escaped = t.replace("\\", "\\\\").replace("\"", "\\\"")
+            sb.append("m").append(i).append(":Media(search:\\\"").append(escaped).append("\\\",type:ANIME){coverImage{large}} ")
+        }
+        sb.append("}")
+        val payload = """{"query":"$sb"}"""
+        val body = payload.toRequestBody("application/json; charset=utf-8".toMediaType())
+        val reqHeaders = headersBuilder().set("Accept", "application/json").build()
+        client.newCall(POST("https://graphql.anilist.co", reqHeaders, body)).execute().use { resp ->
+            val data = json.parseToJsonElement(resp.body.string()).jsonObject["data"]?.jsonObject
+                ?: return@use emptyMap()
+            val out = HashMap<Int, String>()
+            titles.indices.forEach { i ->
+                val url = data["m$i"]?.let { elem ->
+                    runCatching {
+                        elem.jsonObject["coverImage"]?.jsonObject?.get("large")?.jsonPrimitive?.contentOrNull
+                    }.getOrNull()
+                }
+                if (!url.isNullOrBlank()) out[i] = url
+            }
+            out
+        }
+    }.getOrDefault(emptyMap())
 
     override fun animeDetailsParse(response: Response): SAnime = throw UnsupportedOperationException()
 
