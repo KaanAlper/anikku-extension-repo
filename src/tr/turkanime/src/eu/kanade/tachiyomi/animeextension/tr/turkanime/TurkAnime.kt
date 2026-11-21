@@ -256,6 +256,16 @@ abstract class TurkAnime : AnimeHttpLegacySource() {
 
         val videos = candidates.take(6).parallelCatchingFlatMapBlocking { c ->
             extractCandidate(c)
+        }.map { v ->
+            val seekArgs = listOf(
+                "stream-lavf-o" to "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5",
+                "demuxer-seekable-cache" to "yes",
+            )
+            val ffArgs = listOf("-allowed_extensions" to "ALL")
+            v.copy(
+                mpvArgs = v.mpvArgs.ifEmpty { seekArgs },
+                ffmpegStreamArgs = v.ffmpegStreamArgs.ifEmpty { ffArgs },
+            )
         }
 
         if (videos.isEmpty()) {

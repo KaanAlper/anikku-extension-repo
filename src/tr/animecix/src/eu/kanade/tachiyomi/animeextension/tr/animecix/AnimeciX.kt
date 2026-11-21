@@ -266,8 +266,17 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
         val urls = videoJson["urls"]?.jsonArray ?: JsonArray(emptyList())
 
         val streamHeaders = headersBuilder()
+            .set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
             .set("Referer", "https://yeshi.eu.org/")
             .build()
+
+        val seekMpvArgs = listOf(
+            "stream-lavf-o" to "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5",
+            "demuxer-seekable-cache" to "yes",
+        )
+        val hlsFfmpegArgs = listOf(
+            "-allowed_extensions" to "ALL",
+        )
 
         val videos = urls.mapNotNull { item ->
             val obj = item.jsonObject
@@ -278,6 +287,8 @@ abstract class AnimeciX : AnimeHttpLegacySource() {
                 videoTitle = label,
                 headers = streamHeaders,
                 subtitleTracks = subtitleTracks,
+                mpvArgs = seekMpvArgs,
+                ffmpegStreamArgs = hlsFfmpegArgs,
             )
         }
 

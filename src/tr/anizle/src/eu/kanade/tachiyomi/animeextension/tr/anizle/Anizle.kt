@@ -288,9 +288,11 @@ abstract class Anizle : AnimeHttpLegacySource() {
             }
         }
 
-        val masterRe = Regex("""(?:nativeMasterUrl|masterUrl)\s*=\s*"([^"]+)"""")
-        for (match in masterRe.findAll(pageHtml)) {
-            val path = match.groupValues[1]
+        val masterRe = Regex("""(?:masterUrl|nativeMasterUrl)\s*=\s*"([^"]+)"""")
+        val candidates = masterRe.findAll(pageHtml).map { it.groupValues[1] }.toList()
+        // Prefer master.txt (/m3/) over native.m3u8 (/mn/) since /mn/ often returns 403
+        val ordered = candidates.sortedBy { if (it.contains("master.txt")) 0 else 1 }
+        for (path in ordered) {
             val m3u8Url = if (path.startsWith("http")) {
                 path
             } else {
@@ -317,6 +319,17 @@ abstract class Anizle : AnimeHttpLegacySource() {
 
         if (!body.trimStart().startsWith("#EXTM3U")) return emptyList()
 
+        val hlsMpvArgs = listOf(
+            "demuxer-lavf-o" to "allowed_extensions=ALL,extension_picky=0",
+            "stream-lavf-o" to "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5",
+            "demuxer-seekable-cache" to "yes",
+        )
+        val hlsFfmpegArgs = listOf(
+            "-allowed_extensions" to "ALL",
+            "-extension_picky" to "0",
+            "-f" to "hls",
+        )
+
         val base = m3u8Url.toHttpUrlOrNull()
         val resRe = Regex("""RESOLUTION=\d+x(\d+)""")
         val nameRe = Regex("""NAME="([^"]+)"""")
@@ -341,6 +354,8 @@ abstract class Anizle : AnimeHttpLegacySource() {
                         videoUrl = resolved,
                         videoTitle = "$quality ($labelPrefix)",
                         headers = streamHeaders,
+                        mpvArgs = hlsMpvArgs,
+                        ffmpegStreamArgs = hlsFfmpegArgs,
                     ),
                 )
             }
@@ -352,6 +367,8 @@ abstract class Anizle : AnimeHttpLegacySource() {
                     videoUrl = m3u8Url,
                     videoTitle = "Auto ($labelPrefix)",
                     headers = streamHeaders,
+                    mpvArgs = hlsMpvArgs,
+                    ffmpegStreamArgs = hlsFfmpegArgs,
                 ),
             )
         }
