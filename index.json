@@ -51,12 +51,12 @@
         "name": "T\u00fcrkAnime",
         "packageName": "eu.kanade.tachiyomi.animeextension.tr.turkanime",
         "resources": {
-          "apkUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/apk/aniyomi-tr.turkanime-v14.8.apk",
+          "apkUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/apk/aniyomi-tr.turkanime-v14.9.apk",
           "iconUrl": "https://raw.githubusercontent.com/KaanAlper/anikku-extension-repo/repo/icon/eu.kanade.tachiyomi.animeextension.tr.turkanime.png"
         },
         "extensionLib": "14",
-        "versionCode": "8",
-        "versionName": "14.8",
+        "versionCode": "9",
+        "versionName": "14.9",
         "contentWarning": "CONTENT_WARNING_SAFE",
         "sources": [
           {
